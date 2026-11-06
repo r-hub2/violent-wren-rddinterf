@@ -1,0 +1,99 @@
+---
+title: "Using rddinterf"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using rddinterf}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+The `rddinterf` package estimates effects in a sharp regression discontinuity
+design when each unit's outcome may depend on its neighbors' treatments. It uses
+the distance to an effective-treatment boundary as the running variable and
+allows the variance to reflect dependence through a supplied graph.
+
+## Inputs
+
+The main function requires:
+
+- `Yi`: the observed outcome vector;
+- `Xi`: the individual running variable;
+- `neighbors`: a list whose `i`th element contains the observation indices of
+  unit `i`'s neighbors;
+- `W`: the dependency graph, with rows and columns ordered like `Yi`;
+- `contrasts`: a named list of effective-treatment contrasts; and
+- `exposure`: the neighborhood exposure mapping.
+
+Each contrast has the form `list(c(d, g), c(dprime, gprime))`. The first pair
+is placed on the right of the distance cutoff and the second on the left.
+
+## Example
+
+The following small ring network illustrates the required data structures.
+
+```{r}
+library(rddinterf)
+
+set.seed(123)
+n <- 80
+Xi <- runif(n, -1, 1)
+neighbors <- lapply(seq_len(n), function(i) {
+  c(if (i == 1) n else i - 1L, if (i == n) 1L else i + 1L)
+})
+
+W <- diag(n)
+for (i in seq_len(n)) W[i, neighbors[[i]]] <- 1
+W <- (W + t(W) > 0) * 1
+
+Di <- as.integer(Xi >= 0)
+Gi <- as.numeric(vapply(neighbors, function(j) any(Di[j] == 1), logical(1)))
+Yi <- 1 + Di + 0.3 * Gi + 0.5 * Xi + rnorm(n, sd = 0.2)
+
+contrasts <- list(
+  direct = list(c(1, 0), c(0, 0)),
+  spillover = list(c(0, 1), c(0, 0))
+)
+
+fit <- rddinterf(
+  Yi, Xi, neighbors, W, contrasts,
+  exposure = "one.treated",
+  estimator = "conventional",
+  h = 0.8,
+  b = 1
+)
+
+fit
+```
+
+`ov_direct` is the discontinuity in the individual running variable and
+`ov_indirect` is the discontinuity in the nearest neighbor score. The remaining
+rows correspond to the named contrasts supplied in `contrasts`. Use
+`summary(fit)` to obtain the underlying numeric summary matrix.
+
+## Exposure mappings
+
+Four mappings are available:
+
+- `"one.treated"`: whether at least one neighbor is treated;
+- `"sum.treated"`: the number of treated neighbors;
+- `"frac.treated"`: the fraction of treated neighbors; and
+- `"majority"`: whether at least half of the neighbors are treated.
+
+Use `estimator = "conventional"` for the conventional local polynomial
+estimator or `estimator = "robust"` for bias-corrected estimation and robust
+inference. Bandwidths are selected automatically unless `h` and `b` are
+supplied.
+
+## Neighborhood strata with different codimensions
+
+The convergence rate depends on the codimension of the effective-treatment
+boundary. If a contrast pools neighborhood strata with different codimensions,
+`rddinterf()` reports a warning. As established in the paper, such a pooled
+estimator converges to a weighted average of boundary effects over the strata
+with minimum codimension. To target effects in every stratum, estimate the
+stratum-specific effects separately and aggregate them with the appropriate
+density weights.

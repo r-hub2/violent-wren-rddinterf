@@ -1,0 +1,13 @@
+bibentry(
+  bibtype = "Misc",
+  title = "Regression Discontinuity Designs Under Interference",
+  author = c(
+    person("Elena", "Dal Torrione"),
+    person("Tiziano", "Arduini"),
+    person("Laura", "Forastiere")
+  ),
+  year = "2024",
+  doi = "10.48550/arXiv.2410.02727",
+  url = "https://arxiv.org/abs/2410.02727",
+  note = "arXiv:2410.02727"
+)
